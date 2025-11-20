@@ -1,115 +1,156 @@
+// src/services/dataService.ts
 
-import { supabase, isCloudEnabled } from '../lib/supabaseClient';
-import { Student, Instructor, Class, Expense, Service, StudentLabel, AdminUser } from '../types';
+import { createClient } from '@supabase/supabase-js';
+import { Class, Student, Service, Enrollment } from '../types';
 
-// Nomes das chaves para LocalStorage
-const KEYS = {
-    STUDENTS: 'pilates_students',
-    INSTRUCTORS: 'pilates_instructors',
-    CLASSES: 'pilates_classes',
-    EXPENSES: 'pilates_expenses',
-    SERVICES: 'pilates_services',
-    LABELS: 'pilates_student_labels',
-    ADMINS: 'pilates_admins',
-};
+// ======================================================
+// 🔗 CONFIG SUPABASE
+// ======================================================
+const supabaseUrl = "https://wkmigwuhzchbnjquhxgo.supabase.co";
+const supabaseAnonKey =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndrbWlnd3VoemNoYm5qcXVoeGdvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM1ODY5OTQsImV4cCI6MjA3OTE2Mjk5NH0.fhQZNKLzdS_YvXNaEC93nKc4CwX416GvctFkkzfCR0E";
 
-// Função genérica para carregar dados (Cloud -> Fallback Local)
-async function loadData<T>(tableName: string, localKey: string, initialData: T): Promise<T> {
-    if (isCloudEnabled && supabase) {
-        try {
-            const { data, error } = await supabase.from(tableName).select('*');
-            if (error) throw error;
-            
-            if (data && data.length > 0) {
-                return data as unknown as T;
-            }
-        } catch (err) {
-            console.warn(`Erro ao carregar ${tableName} da nuvem, tentando local...`, err);
-        }
-    }
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-    // Fallback LocalStorage
-    try {
-        const item = window.localStorage.getItem(localKey);
-        return item ? JSON.parse(item) : initialData;
-    } catch (error) {
-        console.error(`Erro localStorage ${localKey}:`, error);
-        return initialData;
-    }
+// ======================================================
+// 📌 STUDENTS
+// ======================================================
+export async function getStudents(): Promise<Student[]> {
+  const { data, error } = await supabase.from("students").select("*");
+
+  if (error) throw error;
+  return data || [];
 }
 
-// Função genérica para salvar dados (Upsert Cloud + Delete Missing + Local Backup)
-async function saveData(tableName: string, localKey: string, data: any[]) {
-    // 1. Salvar Local (Backup instantâneo e offline)
-    window.localStorage.setItem(localKey, JSON.stringify(data));
+export async function createStudent(student: Omit<Student, "id" | "avatarUrl">) {
+  const { data, error } = await supabase
+    .from("students")
+    .insert({
+      name: student.name,
+      email: student.email,
+      notes: student.notes,
+      joinDate: student.joinDate,
+      avatarUrl: `https://api.dicebear.com/8.x/thumbs/svg?seed=${encodeURIComponent(
+        student.name
+      )}`
+    })
+    .select()
+    .single();
 
-    // 2. Salvar Nuvem (Sync)
-    if (isCloudEnabled && supabase) {
-        try {
-            // A. Atualizar ou Inserir dados existentes
-            const { error: upsertError } = await supabase.from(tableName).upsert(data);
-            if (upsertError) throw upsertError;
-
-            // B. Sincronizar Deletes (Exceto para classes que usam chave composta e raramente são deletadas)
-            // Se não fizermos isso, itens deletados no App continuariam existindo no Banco.
-            if (tableName !== 'classes') {
-                const { data: dbData, error: fetchError } = await supabase.from(tableName).select('id');
-                if (fetchError) throw fetchError;
-
-                if (dbData) {
-                    // Identificar IDs que estão no Banco mas NÃO estão mais no App (foram deletados)
-                    const currentIds = new Set(data.map((item: any) => item.id));
-                    const idsToDelete = dbData
-                        .filter((row: any) => !currentIds.has(row.id))
-                        .map((row: any) => row.id);
-
-                    if (idsToDelete.length > 0) {
-                        const { error: deleteError } = await supabase.from(tableName).delete().in('id', idsToDelete);
-                        if (deleteError) console.error(`Erro ao deletar obsoletos em ${tableName}:`, deleteError);
-                    }
-                }
-            }
-
-        } catch (err) {
-            console.error(`Erro de sincronização em ${tableName}:`, err);
-        }
-    }
+  if (error) throw error;
+  return data;
 }
 
-// API Exportada
-export const dataService = {
-    // --- Students ---
-    getStudents: (initial: Student[]) => loadData<Student[]>('students', KEYS.STUDENTS, initial),
-    saveStudents: (data: Student[]) => saveData('students', KEYS.STUDENTS, data),
+export async function updateStudentData(student: Student) {
+  const { error } = await supabase
+    .from("students")
+    .update({
+      name: student.name,
+      email: student.email,
+      notes: student.notes
+    })
+    .eq("id", student.id);
 
-    // --- Instructors ---
-    getInstructors: (initial: Instructor[]) => loadData<Instructor[]>('instructors', KEYS.INSTRUCTORS, initial),
-    saveInstructors: (data: Instructor[]) => saveData('instructors', KEYS.INSTRUCTORS, data),
+  if (error) throw error;
+}
 
-    // --- Classes ---
-    getClasses: async (initial: Class[]) => {
-        const data = await loadData<Class[]>('classes', KEYS.CLASSES, initial);
-        return data.map(c => ({
-             ...c,
-             enrollments: c.enrollments || []
-        }));
-    },
-    // Classes usam chave composta (id, date), então evitamos a lógica de delete automático por ID simples
-    saveClasses: (data: Class[]) => saveData('classes', KEYS.CLASSES, data),
+// ======================================================
+// 📌 SERVICES (Tipos de Atendimento)
+// ======================================================
+export async function getServices(): Promise<Service[]> {
+  const { data, error } = await supabase.from("services").select("*");
 
-    // --- Expenses ---
-    getExpenses: (initial: Expense[]) => loadData<Expense[]>('expenses', KEYS.EXPENSES, initial),
-    saveExpenses: (data: Expense[]) => saveData('expenses', KEYS.EXPENSES, data),
+  if (error) throw error;
+  return data || [];
+}
 
-    // --- Services ---
-    getServices: (initial: Service[]) => loadData<Service[]>('services', KEYS.SERVICES, initial),
-    saveServices: (data: Service[]) => saveData('services', KEYS.SERVICES, data),
+// ======================================================
+// 📌 CLASSES (Agenda)
+// ======================================================
 
-    // --- Labels ---
-    getLabels: (initial: StudentLabel[]) => loadData<StudentLabel[]>('student_labels', KEYS.LABELS, initial),
-    saveLabels: (data: StudentLabel[]) => saveData('student_labels', KEYS.LABELS, data),
+// Obter todas as aulas de um dia
+export async function getClassesByDay(date: string): Promise<Class[]> {
+  const { data, error } = await supabase
+    .from("classes")
+    .select("*")
+    .eq("date", date);
 
-    // --- Admins ---
-    getAdmins: (initial: AdminUser[]) => loadData<AdminUser[]>('admins', KEYS.ADMINS, initial),
-    saveAdmins: (data: AdminUser[]) => saveData('admins', KEYS.ADMINS, data),
-};
+  if (error) throw error;
+
+  // converter date string → Date
+  return (data || []).map((c: any) => ({
+    ...c,
+    date: new Date(c.date + "T00:00:00"),
+    enrollments: c.enrollments || []
+  }));
+}
+
+// Salvar todas as aulas do dia
+export async function updateClassesForDay(date: string, classes: Class[]) {
+  // Apaga tudo do dia
+  const { error: delErr } = await supabase.from("classes").delete().eq("date", date);
+  if (delErr) throw delErr;
+
+  // Insere novamente
+  const payload = classes.map(c => ({
+    id: c.id,
+    date: date,
+    serviceId: c.serviceId,
+    capacity: c.enrollments.length,
+    enrollments: c.enrollments as Enrollment[]
+  }));
+
+  const { error: insErr } = await supabase.from("classes").insert(payload);
+
+  if (insErr) throw insErr;
+}
+
+// ======================================================
+// ⚙ CONFIGURAÇÃO EM LOTE
+// ======================================================
+export async function batchConfigureClasses(
+  dates: string[],
+  hours: string[],
+  capacity: number,
+  serviceId: string | null
+) {
+  // Cria payload
+  const allRows: any[] = [];
+
+  for (const date of dates) {
+    for (const hour of hours) {
+      const enrollments: Enrollment[] = [];
+
+      if (serviceId) {
+        for (let i = 0; i < capacity; i++) {
+          enrollments.push({
+            studentId: null,
+            status: "PENDING",
+            price: 0
+          });
+        }
+      }
+
+      allRows.push({
+        id: hour,
+        date,
+        serviceId,
+        capacity,
+        enrollments
+      });
+    }
+  }
+
+  // Apagar tudo do intervalo de datas
+  const { error: delErr } = await supabase
+    .from("classes")
+    .delete()
+    .in("date", dates);
+
+  if (delErr) throw delErr;
+
+  // Inserir tudo novamente
+  const { error: insErr } = await supabase.from("classes").insert(allRows);
+
+  if (insErr) throw insErr;
+}
