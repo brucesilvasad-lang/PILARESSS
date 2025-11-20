@@ -48,7 +48,7 @@ const Schedule: React.FC<ScheduleProps> = ({
   // yyyy-mm-dd
   const dateString = useMemo(() => currentDate.toISOString().split('T')[0], [currentDate]);
 
-  // Gera grade com base nos dados vindos do backend
+  // Grade gerada a partir do backend
   const dailyClasses = useMemo(() => {
     const filtered = allDayClasses.filter(c => c.date === dateString);
     const map = new Map(filtered.map(c => [c.id, c]));
@@ -64,7 +64,7 @@ const Schedule: React.FC<ScheduleProps> = ({
 
   const [localDailyClasses, setLocalDailyClasses] = useState<Class[]>(dailyClasses);
 
-  // Atualiza quando troca o dia
+  // Atualiza quando muda o dia
   useEffect(() => {
     setLocalDailyClasses(dailyClasses);
   }, [dailyClasses]);
@@ -79,7 +79,7 @@ const Schedule: React.FC<ScheduleProps> = ({
     [localDailyClasses, dateString, updateClassesForDay]
   );
 
-  // Mudar tipo de atendimento
+  // Mudar atendimento
   const handleServiceChange = (hour: string, serviceId: string | null) => {
     if (isReadOnly) return;
 
@@ -91,7 +91,7 @@ const Schedule: React.FC<ScheduleProps> = ({
 
     let enrollments = target.enrollments;
 
-    // Se trocou o atendimento e não há vagas, cria uma vaga inicial
+    // Se trocar o atendimento e não houver vagas, cria vaga inicial
     if (serviceId && enrollments.length === 0) {
       enrollments = [{
         studentId: null,
@@ -103,7 +103,7 @@ const Schedule: React.FC<ScheduleProps> = ({
     handleUpdate({ ...target, serviceId, enrollments });
   };
 
-  // Criar VAGA
+  // Criar vaga
   const handleAddStudentSlot = (hour: string) => {
     if (isReadOnly) return;
 
@@ -122,7 +122,7 @@ const Schedule: React.FC<ScheduleProps> = ({
     handleUpdate({ ...target, enrollments: [...target.enrollments, newEnrollment] });
   };
 
-  // Mudar aluno na vaga
+  // Selecionar aluno
   const handleEnrollmentChange = (hour: string, index: number, studentId: string | null) => {
     if (isReadOnly) return;
 
@@ -135,7 +135,7 @@ const Schedule: React.FC<ScheduleProps> = ({
     handleUpdate({ ...target, enrollments: updated });
   };
 
-  // Status da vaga
+  // Mudar status
   const handleStatusChange = (hour: string, index: number, status: AttendanceStatus) => {
     if (isReadOnly) return;
 
@@ -160,7 +160,7 @@ const Schedule: React.FC<ScheduleProps> = ({
     handleUpdate({ ...target, enrollments: updated });
   };
 
-  // Editar preço da vaga
+  // Atualizar preço
   const handlePriceChange = (hour: string, index: number, price: number) => {
     if (isReadOnly) return;
 
@@ -173,7 +173,7 @@ const Schedule: React.FC<ScheduleProps> = ({
     handleUpdate({ ...target, enrollments: updated });
   };
 
-  // Agendar aluno (modo leitura)
+  // Agendar aluno no modo leitura
   const handleStudentBook = (hour: string, index: number) => {
     if (!currentStudentId) return;
 
@@ -220,9 +220,11 @@ const Schedule: React.FC<ScheduleProps> = ({
     });
   };
 
+  // Formatador de moeda
   const formatCurrency = (v: number) =>
     v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-    // CONFIG EM LOTE
+
+  // CONFIG EM LOTE -------------
   const [configPeriod, setConfigPeriod] = useState<'today' | 'week' | 'month'>('month');
   const [configCapacity, setConfigCapacity] = useState<number>(3);
   const [configServiceId, setConfigServiceId] = useState<string>('');
@@ -340,7 +342,7 @@ const Schedule: React.FC<ScheduleProps> = ({
                 ${isReadOnly && !cls.serviceId ? 'opacity-50' : ''}
               `}
             >
-              {/* TOPO – Horário + Receita */}
+              {/* TOPO */}
               <div className="flex justify-between items-center border-b pb-2 border-gray-200 dark:border-gray-700">
                 <h3 className="font-bold text-xl text-brand-primary dark:text-gray-100">
                   {cls.id}
@@ -354,7 +356,7 @@ const Schedule: React.FC<ScheduleProps> = ({
                 )}
               </div>
 
-              {/* Seleção de atendimento */}
+              {/* Atendimento */}
               {!isReadOnly ? (
                 <select
                   value={cls.serviceId || ''}
@@ -398,7 +400,7 @@ const Schedule: React.FC<ScheduleProps> = ({
                           ${isMine ? 'ring-2 ring-brand-secondary bg-blue-50 dark:bg-blue-900/20' : ''}
                         `}
                       >
-                        {/* VISÃO DO ALUNO (READ-ONLY) */}
+                        {/* VISÃO DO ALUNO */}
                         {isReadOnly ? (
                           <div className="flex items-center justify-between min-h-[2.25rem]">
                             {isEmpty ? (
@@ -493,7 +495,7 @@ const Schedule: React.FC<ScheduleProps> = ({
         })}
       </div>
 
-      {/* MODAL DE CONFIGURAÇÃO */}
+      {/* MODAL */}
       <Modal
         isOpen={isConfigModalOpen}
         onClose={() => setIsConfigModalOpen(false)}
@@ -628,4 +630,3 @@ const Schedule: React.FC<ScheduleProps> = ({
 };
 
 export default Schedule;
-
