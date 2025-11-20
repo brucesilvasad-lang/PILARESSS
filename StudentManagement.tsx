@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { Student, Class } from '../types';
 import Modal from './Modal';
@@ -18,31 +17,67 @@ const StudentForm: React.FC<StudentFormProps> = ({ onSubmit, onClose }) => {
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        onSubmit({ name, email, joinDate: new Date().toISOString().split('T')[0], notes });
+        onSubmit({ 
+            name, 
+            email, 
+            joinDate: new Date().toISOString().split('T')[0], 
+            notes 
+        });
         onClose();
     };
 
     return (
         <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-                <label htmlFor="name" className="block text-sm font-medium text-gray-700">Nome Completo</label>
-                <input type="text" id="name" value={name} onChange={(e) => setName(e.target.value)} required className="mt-1 block w-full px-3 py-2 bg-white text-gray-900 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm" />
+                <label className="block text-sm font-medium text-gray-700">Nome Completo</label>
+                <input 
+                    type="text" 
+                    value={name} 
+                    onChange={(e) => setName(e.target.value)} 
+                    required
+                    className="mt-1 block w-full px-3 py-2 bg-white text-gray-900 border border-gray-300 rounded-md"
+                />
             </div>
+
             <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700">Endereço de E-mail (Opcional)</label>
-                <input type="email" id="email" value={email} onChange={(e) => setEmail(e.target.value)} className="mt-1 block w-full px-3 py-2 bg-white text-gray-900 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm" />
+                <label className="block text-sm font-medium text-gray-700">E-mail (Opcional)</label>
+                <input 
+                    type="email" 
+                    value={email} 
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="mt-1 block w-full px-3 py-2 bg-white text-gray-900 border border-gray-300 rounded-md"
+                />
             </div>
+
             <div>
-                <label htmlFor="notes" className="block text-sm font-medium text-gray-700">Observações Iniciais (Metas, lesões, etc.)</label>
-                <textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={4} className="mt-1 block w-full px-3 py-2 bg-white text-gray-900 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm"></textarea>
+                <label className="block text-sm font-medium text-gray-700">Observações</label>
+                <textarea 
+                    rows={4}
+                    value={notes} 
+                    onChange={(e) => setNotes(e.target.value)}
+                    className="mt-1 block w-full px-3 py-2 bg-white text-gray-900 border border-gray-300 rounded-md"
+                ></textarea>
             </div>
+
             <div className="flex justify-end space-x-2">
-                <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200">Cancelar</button>
-                <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-brand-primary rounded-md hover:bg-brand-primary/90">Adicionar Aluno</button>
+                <button 
+                    type="button" 
+                    onClick={onClose} 
+                    className="px-4 py-2 text-sm bg-gray-100 border border-gray-300 rounded-md"
+                >
+                    Cancelar
+                </button>
+                <button 
+                    type="submit" 
+                    className="px-4 py-2 text-sm font-medium text-white bg-brand-primary rounded-md"
+                >
+                    Adicionar
+                </button>
             </div>
         </form>
     );
 };
+
 
 interface StudentManagementProps {
     students: Student[];
@@ -52,222 +87,369 @@ interface StudentManagementProps {
 }
 
 const StudentManagement: React.FC<StudentManagementProps> = ({ students, addStudent, updateStudent, classes }) => {
+
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [isAiModalOpen, setIsAiModalOpen] = useState(false);
     const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+    
     const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+
     const [aiPlan, setAiPlan] = useState('');
     const [isLoadingAi, setIsLoadingAi] = useState(false);
+
     const [isEditing, setIsEditing] = useState(false);
     const [editedStudentData, setEditedStudentData] = useState<Partial<Student>>({});
+
+
+    // --- PREPARAR DATAS CORRETAMENTE ---
+    const parsedClasses = useMemo(() => {
+        return classes.map(cls => ({
+            ...cls,
+            dateObj: new Date(cls.date + "T00:00:00")
+        }));
+    }, [classes]);
+
 
     useEffect(() => {
         if (selectedStudent) {
             setEditedStudentData({
                 name: selectedStudent.name,
                 email: selectedStudent.email,
-                notes: selectedStudent.notes,
+                notes: selectedStudent.notes
             });
         }
     }, [selectedStudent]);
 
-    const handleGeneratePlan = async (student: Student) => {
-        // Ensure we set the student if calling from button inside details (where selectedStudent is already set)
-        // or from outside.
-        const studentToUse = student || selectedStudent;
-        if(!studentToUse) return;
 
-        setSelectedStudent(studentToUse);
-        // Close details modal if open to show AI modal clearly, or stack them. 
-        // Let's stack them: keep details open if it was open? 
-        // The UI is cleaner if we close details and open AI result, or just open AI modal on top.
-        // Since modals are simple fixed divs, let's just open AI modal.
-        
+    // --- GERAR PLANO DE AULA IA ---
+    const handleGeneratePlan = async (studentToUse?: Student) => {
+        const student = studentToUse || selectedStudent;
+        if (!student) return;
+
+        setSelectedStudent(student);
         setIsAiModalOpen(true);
         setIsLoadingAi(true);
-        const plan = await generateExercisePlan(studentToUse.notes);
+
+        const plan = await generateExercisePlan(student.notes);
         setAiPlan(plan);
+
         setIsLoadingAi(false);
     };
 
+
+    // --- DETALHES ---
     const handleOpenDetails = (student: Student) => {
         setSelectedStudent(student);
         setIsDetailModalOpen(true);
         setIsEditing(false);
     };
-    
+
     const handleCloseDetailModal = () => {
         setIsDetailModalOpen(false);
         setSelectedStudent(null);
         setIsEditing(false);
-    }
-    
+    };
+
     const handleSaveChanges = () => {
         if (selectedStudent) {
-            updateStudent({ ...selectedStudent, ...editedStudentData });
+            updateStudent({
+                ...selectedStudent,
+                ...editedStudentData
+            });
             setIsEditing(false);
         }
     };
+
 
     const handleCopyPlan = () => {
         navigator.clipboard.writeText(aiPlan);
     };
 
+
+    // --- HISTÓRICO CORRIGIDO (datas eram string!) ---
     const studentHistory = useMemo(() => {
+
         if (!selectedStudent) return [];
-        const history: {classId: string; className: string; date: Date; status: string; price: number}[] = [];
-        classes.forEach(cls => {
-            cls.enrollments.forEach(enrollment => {
-                if (enrollment.studentId === selectedStudent.id) {
-                    history.push({
+
+        const list: {
+            classId: string;
+            className: string | undefined;
+            date: Date;
+            status: string;
+            price: number;
+        }[] = [];
+
+        parsedClasses.forEach(cls => {
+            cls.enrollments.forEach(enr => {
+                if (enr.studentId === selectedStudent.id) {
+                    list.push({
                         classId: cls.id,
-                        className: cls.name,
-                        date: cls.date,
-                        status: enrollment.status,
-                        price: enrollment.price,
+                        className: (cls as any).name, // opcional, caso tenha nome
+                        date: cls.dateObj,
+                        status: enr.status,
+                        price: enr.price
                     });
                 }
             });
         });
-        return history.sort((a, b) => b.date.getTime() - a.date.getTime());
-    }, [selectedStudent, classes]);
+
+        return list.sort((a, b) => b.date.getTime() - a.date.getTime());
+    }, [parsedClasses, selectedStudent]);
+
 
     const formatCurrency = (value: number) => {
-        return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-    }
+        return value.toLocaleString('pt-BR', {
+            style: 'currency',
+            currency: 'BRL'
+        });
+    };
+
 
     return (
         <div>
+
+            {/* HEADER */}
             <div className="flex justify-between items-center mb-6">
                 <h1 className="text-3xl font-bold text-brand-primary">Gestão de Alunos</h1>
-                <button onClick={() => setIsAddModalOpen(true)} className="flex items-center px-4 py-2 text-sm font-medium text-white bg-brand-primary rounded-md hover:bg-brand-primary/90">
+
+                <button 
+                    onClick={() => setIsAddModalOpen(true)}
+                    className="flex items-center px-4 py-2 text-sm font-medium text-white bg-brand-primary rounded-md"
+                >
                     <UserPlus size={16} className="mr-2" />
                     Adicionar Aluno
                 </button>
             </div>
 
+
+            {/* LISTA DE ALUNOS */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+
                 {students.map(student => (
-                    <div key={student.id} className="bg-white rounded-lg shadow-md p-5 flex flex-col">
+                    <div 
+                        key={student.id} 
+                        className="bg-white rounded-lg shadow-md p-5 flex flex-col"
+                    >
                         <div className="flex items-center mb-4">
-                            <img src={student.avatarUrl} alt={student.name} className="w-16 h-16 rounded-full mr-4" />
+                            <img 
+                                src={student.avatarUrl}
+                                className="w-16 h-16 rounded-full mr-4"
+                            />
                             <div>
-                                <h3 className="text-lg font-bold text-brand-primary">{student.name}</h3>
-                                <p className="text-sm text-gray-500">{student.email || 'E-mail não informado'}</p>
+                                <h3 className="text-lg font-bold text-brand-primary">
+                                    {student.name}
+                                </h3>
+                                <p className="text-sm text-gray-500">
+                                    {student.email || "Sem e-mail"}
+                                </p>
                             </div>
                         </div>
-                        <p className="text-sm text-gray-600 flex-grow"><strong>Observações:</strong> {student.notes || 'Nenhuma observação disponível.'}</p>
-                        <div className="mt-4">
-                            <button onClick={() => handleOpenDetails(student)} className="flex items-center justify-center w-full px-4 py-2 text-sm font-medium text-brand-primary bg-brand-light rounded-md hover:bg-brand-secondary/50">
-                                Ver Detalhes
-                            </button>
-                        </div>
+
+                        <p className="text-sm text-gray-600 flex-grow">
+                            <strong>Observações:</strong> {student.notes || "Nenhuma observação."}
+                        </p>
+
+                        <button 
+                            onClick={() => handleOpenDetails(student)}
+                            className="mt-4 w-full px-4 py-2 bg-brand-light text-brand-primary rounded-md"
+                        >
+                            Ver Detalhes
+                        </button>
                     </div>
                 ))}
+
             </div>
 
-            <Modal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} title="Adicionar Novo Aluno">
-                <StudentForm onSubmit={addStudent} onClose={() => setIsAddModalOpen(false)} />
-            </Modal>
-            
-            <Modal isOpen={isAiModalOpen} onClose={() => setIsAiModalOpen(false)} title={`Plano de Exercícios (IA) para ${selectedStudent?.name}`}>
-                 <div>
-                    {isLoadingAi ? (
-                        <div className="flex flex-col items-center justify-center h-48">
-                            <Loader2 className="animate-spin text-brand-primary" size={48} />
-                            <p className="mt-4 text-gray-600">Gerando plano personalizado...</p>
-                        </div>
-                    ) : (
-                        <div className="relative">
-                            <button onClick={handleCopyPlan} title="Copiar plano" className="absolute top-0 right-0 p-2 text-gray-500 hover:text-brand-primary">
-                                <Clipboard size={18} />
-                            </button>
-                            <div className="prose prose-sm max-w-none max-h-96 overflow-y-auto pr-4">
-                               <ReactMarkdown>{aiPlan}</ReactMarkdown>
-                            </div>
-                        </div>
-                    )}
-                </div>
+
+            {/* MODAL: ADICIONAR ALUNO */}
+            <Modal 
+                isOpen={isAddModalOpen}
+                onClose={() => setIsAddModalOpen(false)}
+                title="Adicionar Novo Aluno"
+            >
+                <StudentForm 
+                    onSubmit={addStudent}
+                    onClose={() => setIsAddModalOpen(false)}
+                />
             </Modal>
 
-            <Modal isOpen={isDetailModalOpen} onClose={handleCloseDetailModal} title={`Perfil de ${selectedStudent?.name}`}>
-                {selectedStudent && (
-                    <div className="space-y-4">
-                        <div>
-                            <div className="flex justify-between items-center mb-2">
-                                <h3 className="font-bold text-brand-primary">Informações</h3>
-                                {!isEditing ? (
-                                    <button onClick={() => setIsEditing(true)} className="flex items-center text-sm text-blue-600 hover:text-blue-800">
-                                        <Edit size={14} className="mr-1"/> Editar
-                                    </button>
-                                ) : (
-                                    <div className="flex items-center space-x-2">
-                                        <button onClick={handleSaveChanges} className="flex items-center text-sm text-green-600 hover:text-green-800">
-                                            <Save size={14} className="mr-1"/> Salvar
-                                        </button>
-                                        <button onClick={() => setIsEditing(false)} className="flex items-center text-sm text-red-600 hover:text-red-800">
-                                            <X size={14} className="mr-1"/> Cancelar
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
-                            {isEditing ? (
-                                <div className="space-y-3">
-                                    <input type="text" value={editedStudentData.name || ''} onChange={e => setEditedStudentData({...editedStudentData, name: e.target.value})} className="w-full p-2 border rounded bg-white text-gray-900"/>
-                                    <input type="email" value={editedStudentData.email || ''} onChange={e => setEditedStudentData({...editedStudentData, email: e.target.value})} className="w-full p-2 border rounded bg-white text-gray-900"/>
-                                    <textarea value={editedStudentData.notes || ''} onChange={e => setEditedStudentData({...editedStudentData, notes: e.target.value})} rows={3} className="w-full p-2 border rounded bg-white text-gray-900"></textarea>
-                                </div>
-                            ) : (
-                                <>
-                                    <p><span className="font-semibold">Nome:</span> {selectedStudent.name}</p>
-                                    <p><span className="font-semibold">Email:</span> {selectedStudent.email || 'Não informado'}</p>
-                                    <p><span className="font-semibold">Membro desde:</span> {new Date(selectedStudent.joinDate + 'T00:00:00').toLocaleDateString('pt-BR')}</p>
-                                    <p><span className="font-semibold">Observações:</span> {selectedStudent.notes || 'Nenhuma.'}</p>
-                                    
-                                    <div className="mt-4 pt-2 border-t border-gray-100">
-                                        <button 
-                                            onClick={() => handleGeneratePlan(selectedStudent)} 
-                                            className="flex items-center justify-center w-full px-4 py-2 text-sm font-medium text-white bg-brand-accent rounded-md hover:bg-brand-accent/90 transition-colors"
-                                        >
-                                            <Sparkles size={16} className="mr-2" />
-                                            Gerar Plano de Aula com IA
-                                        </button>
-                                    </div>
-                                </>
-                            )}
-                        </div>
-                        <div>
-                            <h3 className="font-bold text-brand-primary">Histórico de Aulas</h3>
-                            {studentHistory.length > 0 ? (
-                                <div className="max-h-60 overflow-y-auto border rounded-md mt-2">
-                                    <table className="w-full text-sm text-left">
-                                        <thead className="text-xs text-gray-700 uppercase bg-gray-50 sticky top-0">
-                                            <tr>
-                                                <th scope="col" className="px-4 py-2">Data</th>
-                                                <th scope="col" className="px-4 py-2">Aula</th>
-                                                <th scope="col" className="px-4 py-2">Status</th>
-                                                <th scope="col" className="px-4 py-2 text-right">Valor</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {studentHistory.map((item, index) => (
-                                                <tr key={`${item.classId}-${index}`} className="bg-white border-b last:border-b-0">
-                                                    <td className="px-4 py-2">{item.date.toLocaleDateString('pt-BR')}</td>
-                                                    <td className="px-4 py-2 font-medium text-gray-900">{item.className}</td>
-                                                    <td className="px-4 py-2">{item.status}</td>
-                                                    <td className="px-4 py-2 text-right">{formatCurrency(item.price)}</td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            ) : (
-                                <p className="text-sm text-gray-500 mt-2">Nenhum histórico de aulas encontrado.</p>
-                            )}
+
+
+            {/* MODAL: IA */}
+            <Modal 
+                isOpen={isAiModalOpen}
+                onClose={() => setIsAiModalOpen(false)}
+                title={`Plano de Exercícios (IA) para ${selectedStudent?.name}`}
+            >
+                {isLoadingAi ? (
+                    <div className="flex flex-col items-center justify-center h-48">
+                        <Loader2 className="animate-spin text-brand-primary" size={48} />
+                        <p className="mt-4 text-gray-600">Gerando plano personalizado...</p>
+                    </div>
+                ) : (
+                    <div className="relative">
+                        <button
+                            onClick={handleCopyPlan}
+                            className="absolute top-0 right-0 p-2 text-gray-500 hover:text-brand-primary"
+                        >
+                            <Clipboard size={18} />
+                        </button>
+
+                        <div className="prose prose-sm max-w-none max-h-96 overflow-y-auto pr-4">
+                            <ReactMarkdown>{aiPlan}</ReactMarkdown>
                         </div>
                     </div>
                 )}
             </Modal>
+
+
+
+            {/* MODAL: DETALHES */}
+            <Modal 
+                isOpen={isDetailModalOpen}
+                onClose={handleCloseDetailModal}
+                title={`Perfil de ${selectedStudent?.name}`}
+            >
+                {selectedStudent && (
+
+                    <div className="space-y-4">
+
+                        {/* INFO */}
+                        <div>
+
+                            <div className="flex justify-between items-center mb-2">
+                                <h3 className="font-bold text-brand-primary">Informações</h3>
+
+                                {!isEditing ? (
+                                    <button 
+                                        onClick={() => setIsEditing(true)}
+                                        className="flex items-center text-sm text-blue-600"
+                                    >
+                                        <Edit size={14} className="mr-1" /> Editar
+                                    </button>
+                                ) : (
+                                    <div className="flex items-center space-x-2">
+                                        <button 
+                                            onClick={handleSaveChanges}
+                                            className="flex items-center text-sm text-green-600"
+                                        >
+                                            <Save size={14} className="mr-1" /> Salvar
+                                        </button>
+
+                                        <button 
+                                            onClick={() => setIsEditing(false)}
+                                            className="flex items-center text-sm text-red-600"
+                                        >
+                                            <X size={14} className="mr-1" /> Cancelar
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+
+
+                            {/* CAMPOS */}
+                            {isEditing ? (
+                                <div className="space-y-3">
+                                    <input 
+                                        type="text"
+                                        value={editedStudentData.name || ""}
+                                        onChange={e => setEditedStudentData({
+                                            ...editedStudentData, 
+                                            name: e.target.value
+                                        })}
+                                        className="w-full p-2 border rounded"
+                                    />
+
+                                    <input 
+                                        type="email"
+                                        value={editedStudentData.email || ""}
+                                        onChange={e => setEditedStudentData({
+                                            ...editedStudentData, 
+                                            email: e.target.value
+                                        })}
+                                        className="w-full p-2 border rounded"
+                                    />
+
+                                    <textarea
+                                        rows={3}
+                                        value={editedStudentData.notes || ""}
+                                        onChange={e => setEditedStudentData({
+                                            ...editedStudentData, 
+                                            notes: e.target.value
+                                        })}
+                                        className="w-full p-2 border rounded"
+                                    ></textarea>
+                                </div>
+                            ) : (
+                                <>
+                                    <p><strong>Nome:</strong> {selectedStudent.name}</p>
+                                    <p><strong>Email:</strong> {selectedStudent.email || "Não informado"}</p>
+                                    <p><strong>Membro desde:</strong> {new Date(selectedStudent.joinDate + "T00:00:00").toLocaleDateString('pt-BR')}</p>
+                                    <p><strong>Observações:</strong> {selectedStudent.notes || "Nenhuma."}</p>
+
+                                    <button 
+                                        onClick={() => handleGeneratePlan(selectedStudent)}
+                                        className="mt-4 w-full px-4 py-2 bg-brand-accent text-white rounded-md"
+                                    >
+                                        <Sparkles size={16} className="mr-2 inline-block" />
+                                        Gerar Plano com IA
+                                    </button>
+                                </>
+                            )}
+
+                        </div>
+
+
+                        {/* HISTÓRICO */}
+                        <div>
+                            <h3 className="font-bold text-brand-primary">Histórico de Aulas</h3>
+
+                            {studentHistory.length > 0 ? (
+                                <div className="max-h-60 overflow-y-auto border rounded-md mt-2">
+
+                                    <table className="w-full text-sm">
+                                        <thead className="text-xs bg-gray-50">
+                                            <tr>
+                                                <th className="px-4 py-2">Data</th>
+                                                <th className="px-4 py-2">Aula</th>
+                                                <th className="px-4 py-2">Status</th>
+                                                <th className="px-4 py-2 text-right">Valor</th>
+                                            </tr>
+                                        </thead>
+
+                                        <tbody>
+                                            {studentHistory.map((h, idx) => (
+                                                <tr key={idx} className="border-b">
+                                                    <td className="px-4 py-2">
+                                                        {h.date.toLocaleDateString('pt-BR')}
+                                                    </td>
+                                                    <td className="px-4 py-2">
+                                                        {h.className || "Aula"}
+                                                    </td>
+                                                    <td className="px-4 py-2">
+                                                        {h.status}
+                                                    </td>
+                                                    <td className="px-4 py-2 text-right">
+                                                        {formatCurrency(h.price)}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+
+                                </div>
+                            ) : (
+                                <p className="text-sm text-gray-500 mt-2">
+                                    Nenhum histórico registrado.
+                                </p>
+                            )}
+
+                        </div>
+
+                    </div>
+                )}
+            </Modal>
+
         </div>
     );
 };
