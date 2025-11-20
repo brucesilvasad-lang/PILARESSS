@@ -45,14 +45,11 @@ const Schedule: React.FC<ScheduleProps> = ({
   const [currentDate, setCurrentDate] = useState(new Date());
   const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
 
-  // yyyy-mm-dd
   const dateString = useMemo(() => currentDate.toISOString().split('T')[0], [currentDate]);
 
-  // Grade gerada a partir do backend
   const dailyClasses = useMemo(() => {
     const filtered = allDayClasses.filter(c => c.date === dateString);
     const map = new Map(filtered.map(c => [c.id, c]));
-
     return HOURS.map(hour => map.get(hour) || {
       id: hour,
       date: dateString,
@@ -64,12 +61,10 @@ const Schedule: React.FC<ScheduleProps> = ({
 
   const [localDailyClasses, setLocalDailyClasses] = useState<Class[]>(dailyClasses);
 
-  // Atualiza quando muda o dia
   useEffect(() => {
     setLocalDailyClasses(dailyClasses);
   }, [dailyClasses]);
 
-  // Atualizar aula
   const handleUpdate = useCallback(
     (updatedClass: Class) => {
       const next = localDailyClasses.map(c => c.id === updatedClass.id ? updatedClass : c);
@@ -79,10 +74,8 @@ const Schedule: React.FC<ScheduleProps> = ({
     [localDailyClasses, dateString, updateClassesForDay]
   );
 
-  // Mudar atendimento
   const handleServiceChange = (hour: string, serviceId: string | null) => {
     if (isReadOnly) return;
-
     const target = localDailyClasses.find(c => c.id === hour);
     if (!target) return;
 
@@ -90,127 +83,85 @@ const Schedule: React.FC<ScheduleProps> = ({
     const price = service ? service.price : 0;
 
     let enrollments = target.enrollments;
-
-    // Se trocar o atendimento e não houver vagas, cria vaga inicial
     if (serviceId && enrollments.length === 0) {
-      enrollments = [{
-        studentId: null,
-        status: AttendanceStatus.PENDING,
-        price
-      }];
+      enrollments = [{ studentId: null, status: AttendanceStatus.PENDING, price }];
     }
 
     handleUpdate({ ...target, serviceId, enrollments });
   };
 
-  // Criar vaga
   const handleAddStudentSlot = (hour: string) => {
     if (isReadOnly) return;
-
     const target = localDailyClasses.find(c => c.id === hour);
     if (!target || !target.serviceId) return;
 
     const service = services.find(s => s.id === target.serviceId);
     const price = service ? service.price : 0;
 
-    const newEnrollment: Enrollment = {
-      studentId: null,
-      status: AttendanceStatus.PENDING,
-      price
-    };
-
+    const newEnrollment: Enrollment = { studentId: null, status: AttendanceStatus.PENDING, price };
     handleUpdate({ ...target, enrollments: [...target.enrollments, newEnrollment] });
   };
 
-  // Selecionar aluno
   const handleEnrollmentChange = (hour: string, index: number, studentId: string | null) => {
     if (isReadOnly) return;
-
     const target = localDailyClasses.find(c => c.id === hour);
     if (!target) return;
 
     const updated = [...target.enrollments];
     updated[index].studentId = studentId;
-
     handleUpdate({ ...target, enrollments: updated });
   };
 
-  // Mudar status
   const handleStatusChange = (hour: string, index: number, status: AttendanceStatus) => {
     if (isReadOnly) return;
-
     const target = localDailyClasses.find(c => c.id === hour);
     if (!target) return;
 
     const updated = [...target.enrollments];
     updated[index].status = status;
-
     handleUpdate({ ...target, enrollments: updated });
   };
 
-  // Remover vaga
   const handleRemoveEnrollment = (hour: string, index: number) => {
     if (isReadOnly) return;
-
     const target = localDailyClasses.find(c => c.id === hour);
     if (!target) return;
 
     const updated = target.enrollments.filter((_, i) => i !== index);
-
     handleUpdate({ ...target, enrollments: updated });
   };
 
-  // Atualizar preço
   const handlePriceChange = (hour: string, index: number, price: number) => {
     if (isReadOnly) return;
-
     const target = localDailyClasses.find(c => c.id === hour);
     if (!target || isNaN(price)) return;
 
     const updated = [...target.enrollments];
     updated[index].price = price;
-
     handleUpdate({ ...target, enrollments: updated });
   };
 
-  // Agendar aluno no modo leitura
   const handleStudentBook = (hour: string, index: number) => {
     if (!currentStudentId) return;
-
     const target = localDailyClasses.find(c => c.id === hour);
     if (!target) return;
 
     const updated = [...target.enrollments];
-    updated[index] = {
-      ...updated[index],
-      studentId: currentStudentId,
-      status: AttendanceStatus.BOOKED
-    };
-
+    updated[index] = { ...updated[index], studentId: currentStudentId, status: AttendanceStatus.BOOKED };
     handleUpdate({ ...target, enrollments: updated });
   };
 
-  // Cancelar agendamento
   const handleStudentCancel = (hour: string, index: number) => {
     if (!currentStudentId) return;
-
     const target = localDailyClasses.find(c => c.id === hour);
     if (!target) return;
 
     const updated = [...target.enrollments];
-    updated[index] = {
-      ...updated[index],
-      studentId: null,
-      status: AttendanceStatus.PENDING
-    };
-
+    updated[index] = { ...updated[index], studentId: null, status: AttendanceStatus.PENDING };
     handleUpdate({ ...target, enrollments: updated });
   };
 
-  const studentOptions = useMemo(
-    () => students.map(s => ({ value: s.id, label: s.name })),
-    [students]
-  );
+  const studentOptions = useMemo(() => students.map(s => ({ value: s.id, label: s.name })), [students]);
 
   const changeDay = (offset: number) => {
     setCurrentDate(prev => {
@@ -220,11 +171,9 @@ const Schedule: React.FC<ScheduleProps> = ({
     });
   };
 
-  // Formatador de moeda
-  const formatCurrency = (v: number) =>
-    v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const formatCurrency = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
-  // CONFIG EM LOTE -------------
+  // CONFIG EM LOTE
   const [configPeriod, setConfigPeriod] = useState<'today' | 'week' | 'month'>('month');
   const [configCapacity, setConfigCapacity] = useState<number>(3);
   const [configServiceId, setConfigServiceId] = useState<string>('');
@@ -232,14 +181,12 @@ const Schedule: React.FC<ScheduleProps> = ({
 
   const toggleHour = (hour: string) => {
     setSelectedHours(prev =>
-      prev.includes(hour)
-        ? prev.filter(h => h !== hour)
-        : [...prev, hour]
+      prev.includes(hour) ? prev.filter(h => h !== hour) : [...prev, hour]
     );
   };
 
   const selectAllHours = () => {
-    setSelectedHours(prev => prev.length === HOURS.length ? [] : HOURS);
+    setSelectedHours(prev => (prev.length === HOURS.length ? [] : HOURS));
   };
 
   const applyBatchConfig = () => {
@@ -265,13 +212,7 @@ const Schedule: React.FC<ScheduleProps> = ({
       }
     }
 
-    onBatchUpdate(
-      dates,
-      selectedHours,
-      configCapacity,
-      configServiceId || null
-    );
-
+    onBatchUpdate(dates, selectedHours, configCapacity, configServiceId || null);
     setIsConfigModalOpen(false);
   };
 
@@ -326,9 +267,7 @@ const Schedule: React.FC<ScheduleProps> = ({
         {localDailyClasses.map(cls => {
           const service = services.find(s => s.id === cls.serviceId);
           const serviceName = service?.name ?? 'Atendimento';
-
           const filledSlots = cls.enrollments.filter(e => e.studentId).length;
-
           const classRevenue = cls.enrollments
             .filter(e => e.status === AttendanceStatus.PRESENT && e.studentId)
             .reduce((sum, e) => sum + e.price, 0);
@@ -386,10 +325,7 @@ const Schedule: React.FC<ScheduleProps> = ({
               {cls.serviceId && (
                 <div className="space-y-3">
                   {cls.enrollments.map((enrollment, index) => {
-                    const isMine =
-                      currentStudentId &&
-                      enrollment.studentId === currentStudentId;
-
+                    const isMine = currentStudentId && enrollment.studentId === currentStudentId;
                     const isEmpty = !enrollment.studentId;
 
                     return (
@@ -400,7 +336,6 @@ const Schedule: React.FC<ScheduleProps> = ({
                           ${isMine ? 'ring-2 ring-brand-secondary bg-blue-50 dark:bg-blue-900/20' : ''}
                         `}
                       >
-                        {/* VISÃO DO ALUNO */}
                         {isReadOnly ? (
                           <div className="flex items-center justify-between min-h-[2.25rem]">
                             {isEmpty ? (
@@ -433,7 +368,6 @@ const Schedule: React.FC<ScheduleProps> = ({
                           </div>
                         ) : (
                           <>
-                            {/* Selecionar aluno */}
                             <Select
                               options={studentOptions}
                               value={studentOptions.find(o => o.value === enrollment.studentId) || null}
@@ -446,15 +380,10 @@ const Schedule: React.FC<ScheduleProps> = ({
                             />
 
                             <div className="flex items-center space-x-2">
-                              {/* Status */}
                               <select
                                 value={enrollment.status}
                                 onChange={e =>
-                                  handleStatusChange(
-                                    cls.id,
-                                    index,
-                                    e.target.value as AttendanceStatus
-                                  )
+                                  handleStatusChange(cls.id, index, e.target.value as AttendanceStatus)
                                 }
                                 className="w-full p-1 border rounded-md text-xs bg-white"
                               >
@@ -465,7 +394,6 @@ const Schedule: React.FC<ScheduleProps> = ({
                                 ))}
                               </select>
 
-                              {/* Remover */}
                               <button
                                 onClick={() => handleRemoveEnrollment(cls.id, index)}
                                 className="p-1 text-red-500 hover:text-red-700"
@@ -549,84 +477,11 @@ const Schedule: React.FC<ScheduleProps> = ({
 
           {/* SERVIÇO */}
           <div>
-            <label className="block text-sm font-medium mb-2">
-              2. Atendimento
-            </label>
-
+            <label className="block text-sm font-medium mb-2">2. Atendimento</label>
             <select
               value={configServiceId}
               onChange={e => setConfigServiceId(e.target.value)}
               className="w-full p-2 border rounded-md"
             >
               <option value="">Definir depois (Livre)</option>
-              {services.map(s => (
-                <option key={s.id} value={s.id}>
-                  {s.name} — {formatCurrency(s.price)}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* CAPACIDADE */}
-          <div>
-            <label className="block text-sm font-medium mb-2">
-              3. Capacidade
-            </label>
-            <input
-              type="number"
-              min={1}
-              max={20}
-              value={configCapacity}
-              onChange={e => setConfigCapacity(Number(e.target.value))}
-              className="w-24 p-2 border rounded-md"
-            />
-          </div>
-
-          {/* HORÁRIOS */}
-          <div>
-            <div className="flex justify-between items-center mb-2">
-              <label className="text-sm font-medium">
-                4. Horários
-              </label>
-              <button
-                onClick={selectAllHours}
-                className="text-xs text-brand-primary underline"
-              >
-                {selectedHours.length === HOURS.length
-                  ? 'Desmarcar Todos'
-                  : 'Selecionar Todos'}
-              </button>
-            </div>
-
-            <div className="grid grid-cols-4 gap-2">
-              {HOURS.map(hour => (
-                <button
-                  key={hour}
-                  onClick={() => toggleHour(hour)}
-                  className={`py-2 text-xs rounded-md border ${
-                    selectedHours.includes(hour)
-                      ? 'bg-brand-secondary text-white border-brand-secondary'
-                      : 'bg-white border-gray-200'
-                  }`}
-                >
-                  {hour}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <button
-            onClick={applyBatchConfig}
-            disabled={selectedHours.length === 0}
-            className="w-full py-3 bg-brand-primary text-white rounded-lg disabled:opacity-50"
-          >
-            <LayoutGrid size={18} className="inline mr-2" />
-            Gerar Vagas
-          </button>
-        </div>
-      </Modal>
-    </div>
-  );
-};
-
-export default Schedule;
+              {
